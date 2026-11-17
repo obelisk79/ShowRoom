@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>ShowRoom</name>
+  <description>Present your models in the 3D view: lights with gizmos, real-time shadows, shadow catcher, ambient occlusion, appearance and textures, turntable, dynamic grid and SpaceMouse locks</description>
+  <version>1.0.0</version>
+  <date>2026-11-17</date>
+  <maintainer email="oficinerobotica.cad@gmail.com">OficineRobotica</maintainer>
+  <license file="LICENSE">LGPL-2.1-or-later</license>
+  <url type="repository" branch="main">https://github.com/oficinerobotica/ShowRoom</url>
+  <url type="readme">https://github.com/oficinerobotica/ShowRoom/blob/main/README.md</url>
+  <url type="bugtracker">https://github.com/oficinerobotica/ShowRoom/issues</url>
+  <icon>Resources/Icons/ShowRoom.svg</icon>
+
+  <content>
+    <workbench>
+      <name>ShowRoom</name>
+      <classname>ShowRoomWorkbench</classname>
+      <subdirectory>./</subdirectory>
+      <icon>Resources/Icons/ShowRoom.svg</icon>
+      <freecadmin>1.0.0</freecadmin>
+      <tag>lighting</tag>
+      <tag>shadows</tag>
+      <tag>ambient-occlusion</tag>
+      <tag>appearance</tag>
+      <tag>textures</tag>
+      <tag>presentation</tag>
+      <tag>grid</tag>
+      <tag>spacemouse</tag>
+    </workbench>
+  </content>
+
+</package>
