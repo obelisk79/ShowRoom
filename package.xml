@@ -11,6 +11,11 @@
   <url type="bugtracker">https://github.com/oficinerobotica/ShowRoom/issues</url>
   <icon>Resources/Icons/ShowRoom.svg</icon>
 
+  <!-- real-time ambient occlusion: temporal accumulation and depth reuse;
+       without them the effect falls back to its plain passes -->
+  <depend optional="true" type="python">PyOpenGL</depend>
+  <depend optional="true" type="python">numpy</depend>
+
   <content>
     <workbench>
       <name>ShowRoom</name>
