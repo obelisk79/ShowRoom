@@ -21,6 +21,8 @@ What it maintains in every view (FreeCAD 26.3 layout):
      |         +- view providers ...
      +- [ambient occlusion pass]     <- only while ambient occlusion is on
 """
+from typing import Any
+
 import FreeCAD
 from pivy import coin
 
@@ -44,6 +46,29 @@ _bridge = None
 _warned = set()
 
 
+#: performance toggles of the ambient occlusion: (property, default, tip)
+AO_TOGGLES = (
+    ('AOTemporal', ambient_occlusion.TEMPORAL,
+     'Accumulate ambient occlusion over frames: smoother, and it keeps '
+     'refining while the view is still'),
+    ('AODepthReuse', ambient_occlusion.DEPTH_REUSE,
+     "Reuse the view's depth buffer instead of drawing the model a second "
+     'time: faster on heavy models'),
+)
+
+
+def _add_ao_toggles(cfg: Any) -> None:
+    """Give a scene configuration made before the toggles existed them."""
+    if cfg is None or not hasattr(cfg, 'addProperty'):
+        return
+    group = cfg.getGroupOfProperty('AOQuality') if hasattr(
+        cfg, 'AOQuality') else 'Ambient occlusion'
+    for name, default, tip in AO_TOGGLES:
+        if not hasattr(cfg, name):
+            cfg.addProperty('App::PropertyBool', name, group, tip)
+            setattr(cfg, name, default)
+
+
 class Settings:
     """Effect settings of a document, read from its scene configuration."""
 
@@ -59,6 +84,11 @@ class Settings:
         radius = getattr(cfg, 'AORadius', 0.0)
         self.ao_radius = float(getattr(radius, 'Value', radius))
         self.ao_quality = str(getattr(cfg, 'AOQuality', 'High'))
+        _add_ao_toggles(cfg)
+        self.ao_temporal = bool(getattr(cfg, 'AOTemporal',
+                                        ambient_occlusion.TEMPORAL))
+        self.ao_depth_reuse = bool(getattr(cfg, 'AODepthReuse',
+                                           ambient_occlusion.DEPTH_REUSE))
         self.catcher = bool(getattr(cfg, 'ShadowCatcher', False))
         self.navigation_mode = str(getattr(cfg, 'WhileNavigating', navigation.DEFAULT_MODE))
         self.navigation_delay = int(getattr(cfg, 'NavigationResumeDelay',
@@ -95,13 +125,21 @@ class _Mirrors:
         self.caster_scene.ref()
 
 
-def mirrors_of(doc, view):
-    """The mirror groups of ``doc``, brought up to date from ``view``."""
+def mirrors_of(doc: Any, view: Any, refresh: bool = True) -> '_Mirrors':
+    """The mirror groups of ``doc``, brought up to date from ``view``.
+
+    Refreshing walks every view provider through pivy (on a large model,
+    ~150 ms): the poll asks for it only when the groups are new.
+    """
     mirrors = _mirrors.get(doc.Name)
     if mirrors is None:
         mirrors = _mirrors[doc.Name] = _Mirrors()
-    view_utils.set_children(mirrors.ao, view_utils.geometry_nodes(view, doc, skip=('light',)))
-    view_utils.set_children(mirrors.casters, view_utils.geometry_nodes(view, doc))
+        refresh = True
+    if refresh:
+        view_utils.set_children(mirrors.ao, view_utils.geometry_nodes(
+            view, doc, skip=('light',)))
+        view_utils.set_children(mirrors.casters,
+                                view_utils.geometry_nodes(view, doc))
     return mirrors
 
 
@@ -205,7 +243,19 @@ def _sync_shadows(parts, settings, nodes, mirrors, doc):
 
 
 # ---------------------------------------------------------- ambient occlusion
-def _auto_ao_radius(view, doc):
+# The automatic radius walks the bounding box of the whole model: far too
+# slow for the 400 ms poll on a large one.  Kept per document until the
+# model changes.
+_auto_radii: dict[str, float] = {}
+
+
+def _auto_ao_radius(view: Any, doc: Any) -> float:
+    if doc.Name not in _auto_radii:
+        _auto_radii[doc.Name] = _measure_ao_radius(view, doc)
+    return _auto_radii[doc.Name]
+
+
+def _measure_ao_radius(view: Any, doc: Any) -> float:
     box = view_utils.scene_bound_box(view, doc)
     if box is None:
         return 0.0
@@ -242,13 +292,15 @@ def _sync_ao(parts, settings, doc, mirrors):
     shrink = min(1.0, float(ambient_occlusion.MAX_TEXTURE) / max(width, height))
     wanted_signature = ambient_occlusion.signature(
         max(int(width * shrink), 8), max(int(height * shrink), 8), camera, mirrors.ao,
-        radius, settings.ao_intensity, settings.ao_quality)
+        radius, settings.ao_intensity, settings.ao_quality,
+        settings.ao_temporal, settings.ao_depth_reuse)
     if existing is not None:
         if ambient_occlusion.current_signature(existing) == wanted_signature:
             return
         outer.removeChild(existing)
-    outer.addChild(ambient_occlusion.build(width, height, camera, mirrors.ao, radius,
-                                           settings.ao_intensity, settings.ao_quality))
+    outer.addChild(ambient_occlusion.build(
+        width, height, camera, mirrors.ao, radius, settings.ao_intensity,
+        settings.ao_quality, settings.ao_temporal, settings.ao_depth_reuse))
 
 
 # ------------------------------------------------------------- shadow catcher
@@ -386,6 +438,7 @@ def sync_document(doc):
     """Bring every 3D view of ``doc`` in line with its lights and effect settings."""
     if not FreeCAD.GuiUp or doc is None:
         return
+    _auto_radii.pop(doc.Name, None)
     try:
         settings = Settings(doc)
         lights = document_lights(doc)
@@ -474,6 +527,7 @@ class _DocumentObserver:
         if prop in ('Shape', 'Placement', 'Visibility', 'Mesh', 'Points'):
             try:
                 doc = obj.Document
+                _auto_radii.pop(doc.Name, None)
                 settings = Settings(doc)
                 if settings.shadows or settings.catcher:
                     schedule_sync(doc)
@@ -561,7 +615,9 @@ def _watch():
             settings = Settings(doc)
             for view in view_utils.views_of(doc):
                 if settings.ao:
-                    _sync_ao(view_utils.SceneParts(view), settings, doc, mirrors_of(doc, view))
+                    mirrors = mirrors_of(doc, view, refresh=False)
+                    _sync_ao(view_utils.SceneParts(view), settings, doc,
+                             mirrors)
                 _sync_navigation(view, settings)
         except Exception:
             pass
