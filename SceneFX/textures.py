@@ -39,7 +39,6 @@ _textured_docs = set()
 _timer = None
 _bridge = None
 _app_observer = None
-_gui_observer = None
 _selection_observer = None
 
 
@@ -332,6 +331,7 @@ def _update(source, owner):
     if abs(transform.rotation.getValue() - angle) > 1e-9:
         transform.rotation = angle
 
+    _watch_mode(source, vobj)
     mode = str(getattr(vobj, 'DisplayMode', 'Flat Lines'))
     # "Flat Lines" pushes its faces back to let the edges through: do the same,
     # so that the copy has exactly the depth of the faces it covers
@@ -536,6 +536,7 @@ def sync_document(doc):
             stale = view_utils.find_child(vp_root, NODE_NAME)
             if stale is not None:
                 vp_root.removeChild(stale)
+                _forget_mode(obj)
     if wanted:
         refresh_selection(doc)
 
@@ -606,34 +607,62 @@ class _AppObserver:
     def slotDeletedDocument(self, doc):
         try:
             _textured_docs.discard(doc.Name)
+            for key in [k for k in _mode_sensors if k[0] == doc.Name]:
+                entry = _mode_sensors.pop(key)
+                entry[1].detach()
         except Exception:
             pass
 
 
-class _GuiObserver:
-    def slotChangedObject(self, vobj, prop):
-        # Never touch ``vobj`` here: this is also called while a view provider
-        # is still being set up, when asking for its object crashes FreeCAD.
-        if prop in ('Visibility', 'DisplayMode') and _textured_docs:
-            documents = FreeCAD.listDocuments()
-            for name in list(_textured_docs):
-                schedule(documents.get(name))
+# No GUI document observer here: FreeCAD calls its slotChangedObject while a
+# view provider is still being built, and handing that view provider to Python
+# then gives it the generic wrapper for good (Part objects lose DiffuseColor,
+# which breaks other add-ons such as SheetMetal). The display mode of a
+# textured object is followed with a sensor on its mode switch instead, and
+# visibility through the App observer.
+_mode_sensors = {}          # (document, object) -> SoFieldSensor on the mode switch
+
+
+def _watch_mode(source, vobj):
+    key = (source.Document.Name, source.Name)
+    try:
+        switch = vobj.SwitchNode
+    except Exception:
+        return
+    current = _mode_sensors.get(key)
+    if current is not None and current[0] is switch:
+        return
+    doc_name = source.Document.Name
+
+    def changed(*_):
+        schedule(FreeCAD.listDocuments().get(doc_name))
+    sensor = coin.SoFieldSensor(changed, None)
+    sensor.attach(switch.whichChild)
+    _mode_sensors[key] = (switch, sensor, changed)
+
+
+def _forget_mode(source):
+    try:
+        key = (source.Document.Name, source.Name)
+    except Exception:
+        return
+    entry = _mode_sensors.pop(key, None)
+    if entry is not None:
+        try:
+            entry[1].detach()
+        except Exception:
+            pass
 
 
 def install():
     """Start watching the documents. Called when FreeCAD starts, so that the
     textures of a document show up without opening this workbench first."""
-    global _app_observer, _gui_observer, _selection_observer
+    global _app_observer, _selection_observer
     if _app_observer is not None or not FreeCAD.GuiUp:
         return
     import FreeCADGui
     _app_observer = _AppObserver()
     FreeCAD.addDocumentObserver(_app_observer)
-    try:
-        _gui_observer = _GuiObserver()
-        FreeCADGui.addDocumentObserver(_gui_observer)
-    except Exception:
-        _gui_observer = None
     try:
         _selection_observer = _SelectionObserver()
         FreeCADGui.Selection.addObserver(_selection_observer)

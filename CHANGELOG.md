@@ -1,5 +1,14 @@
 # Changelog
 
+## ShowRoom 1.0.1
+
+Fixed
+- With ShowRoom installed, Part objects lost `ViewObject.DiffuseColor`, which broke other
+  add-ons that read it (for example SheetMetal's *Make Wall*). The texture watcher used a GUI
+  document observer that FreeCAD calls while a view provider is still being built; handing
+  that view provider to Python gave it the generic wrapper for good. Textures now follow the
+  display mode with a Coin sensor instead.
+
 ## ShowRoom 1.0.0
 
 First release under the new name. ShowRoom continues Display Tools 1.7.1 and opens its documents.
