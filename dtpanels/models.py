@@ -246,16 +246,14 @@ class EffectsModel(Model):
         return ps
 
     def _ao_toggles(self):
-        """The options that need PyOpenGL: greyed out, with a note, without."""
+        """The option that needs PyOpenGL: greyed out, with a note, without."""
         c = self.cfg
         from SceneFX import gl_util
         usable = gl_util.missing_dependency() is None
         rows = [prop(c, 'AOTemporal', 'Refine over frames', 'bool',
-                     'Ambient occlusion', disabled=not usable),
-                prop(c, 'AODepthReuse', "Reuse the view's depth", 'bool',
                      'Ambient occlusion', disabled=not usable)]
         if not usable:
-            rows.append(param(AO_NOTE, 'These two need the Python package '
+            rows.append(param(AO_NOTE, 'This needs the Python package '
                               'PyOpenGL.', 'note', 'Ambient occlusion',
                               None, None))
         return rows
@@ -283,7 +281,7 @@ class EffectsModel(Model):
             out += ['ShadowDarkness', 'ShadowSoftness', 'ShadowQuality']
         if not c.AmbientOcclusion:
             out += ['AOIntensity', 'AORadius', 'AOQuality', 'AOTemporal',
-                    'AODepthReuse', AO_NOTE]
+                    AO_NOTE]
         return out
 
     def info(self):

@@ -5,7 +5,7 @@
 Four passes, built from stock Coin nodes:
 
 1. *depth*: eye depth and facet normal of every pixel, drawn into a float
-   texture (or copied from the view's own depth buffer, see depth_reuse);
+   texture;
 2. *occlusion*: ground truth AO (Jimenez et al. 2016, structured like
    Intel's XeGTAO): horizons searched along a few slices per pixel, the
    visible arc between them integrated exactly;
@@ -45,7 +45,6 @@ def _optional(name: str) -> ModuleType | None:
 
 
 temporal_ao = _optional('temporal_ao')
-depth_reuse = _optional('depth_reuse')
 
 ROOT_NAME = 'DisplayToolsAO'
 #: on/off switch, flipped by navigation while the camera moves
@@ -61,6 +60,15 @@ QUALITY = {
     'Medium': (3, 4, 1.0, 1.0),
     'High': (4, 6, 1.0, 1.0),
 }
+#: the same per frame where temporal accumulation runs: the slices turn
+#: each frame and the history adds them up, so one or two slices a frame
+#: give the look of four or more once settled
+TEMPORAL_QUALITY = {
+    'Interactive': (1, 3, 0.5, 0.5),
+    'Low': (1, 3, 1.0, 0.5),
+    'Medium': (1, 4, 1.0, 1.0),
+    'High': (2, 4, 1.0, 1.0),
+}
 INTERACTIVE = 'Interactive'
 DEFAULT_QUALITY = 'Medium'
 
@@ -69,6 +77,10 @@ DEFAULT_QUALITY = 'Medium'
 MAX_SCREEN_RADIUS = 0.2
 #: visibility ** (intensity * POWER): deepens creases, open faces stay 1
 POWER = 1.5
+#: how far the passes' quads reach on every axis, in model units: Coin
+#: culls a shape whose bounds miss the view, so the quad's bounds must
+#: hold any view (kilometres, in millimetres)
+QUAD_REACH = 1e9
 #: SoSceneTexture2 sizes are 16 bit
 MAX_TEXTURE = 8192
 MIN_TEXTURE = 8
@@ -94,11 +106,14 @@ void main() {
 }
 """
 
+# The quad's corners may lie far out (see _quad): only their signs place
+# it, over the whole viewport.
 QUAD_VERTEX = """#version 120
 varying vec2 dt_uv;
 void main() {
-    dt_uv = gl_Vertex.xy * 0.5 + 0.5;
-    gl_Position = vec4(gl_Vertex.xy, 0.0, 1.0);
+    vec2 corner = sign(gl_Vertex.xy);
+    dt_uv = corner * 0.5 + 0.5;
+    gl_Position = vec4(corner, 0.0, 1.0);
 }
 """
 
@@ -286,10 +301,6 @@ def _use_temporal(wanted: bool) -> bool:
     return wanted and temporal_ao is not None and temporal_ao.available()
 
 
-def _use_reuse(wanted: bool) -> bool:
-    return wanted and depth_reuse is not None and depth_reuse.available()
-
-
 def available() -> bool:
     """Whether this Coin build has every node the effect is made of."""
     needed = ('SoSceneTexture2', 'SoShaderProgram', 'SoFragmentShader',
@@ -302,14 +313,13 @@ def available() -> bool:
 
 def signature(width: int, height: int, camera: Any, scene: Any,
               radius: float, intensity: float, quality: str,
-              temporal: bool = False, reuse: bool = False) -> str:
+              temporal: bool = False) -> str:
     """Everything the node tree depends on: a new signature, a rebuild.
 
-    The effective toggles are part of it, so depth reuse that failed is
+    The effective toggle is part of it, so temporal AO that failed is
     rebuilt without it at the next sync.
     """
-    flags = ('T' if _use_temporal(temporal) else '') + (
-        'R' if _use_reuse(reuse) else '')
+    flags = 'T' if _use_temporal(temporal) else ''
     return 'gtao|%s|%dx%d|%x|%x|%.6g|%.4g|%s' % (
         flags, width, height, view_utils.node_address(camera),
         view_utils.node_address(scene), radius, intensity, quality)
@@ -357,16 +367,52 @@ def _sampler(name: str, unit: int) -> Any:
     return parameter
 
 
-def _quad() -> Any:
+def _quad(reach: float = QUAD_REACH) -> Any:
+    """A pass's full-screen quad, ``reach`` out from the origin.
+
+    Its shader places it, but Coin culls a shape by its bounds: a unit quad
+    at the origin was skipped with the origin out of view or behind the
+    camera (a model far from it, zoomed in), and the pass with it.  Reaching
+    QUAD_REACH out on every axis, its bounds hold any view.
+    """
     coords = coin.SoCoordinate3()
-    coords.point.setValues(
-        0, 4, [(-1, -1, 0), (1, -1, 0), (1, 1, 0), (-1, 1, 0)])
+    coords.point.setValues(0, 4, [
+        (-reach, -reach, -reach), (reach, -reach, -reach),
+        (reach, reach, reach), (-reach, reach, reach)])
     face = coin.SoFaceSet()
     face.numVertices.setValue(4)
     group = coin.SoGroup()
     group.addChild(coords)
     group.addChild(face)
     return group
+
+
+def _framed_quad() -> Any:
+    """The composite's quad, framed by a camera of its own.
+
+    It is drawn in the view's scene, where a far-reaching quad would stretch
+    "fit all", and a unit quad under the view's camera is culled with the
+    origin out of view.  This camera always sees it; the composite shader
+    does not use the view's projection.
+    """
+    camera = coin.SoOrthographicCamera()
+    camera.viewportMapping = coin.SoCamera.LEAVE_ALONE
+    camera.position = (0, 0, 1)
+    camera.height = 2.0
+    camera.aspectRatio = 1.0
+    camera.nearDistance = 0.5
+    camera.farDistance = 1.5
+    group = coin.SoGroup()
+    group.addChild(camera)
+    group.addChild(_quad(reach=1.0))
+    return group
+
+
+def _separator() -> Any:
+    """A separator Coin never culls: its quads are placed by shaders."""
+    separator = coin.SoSeparator()
+    separator.renderCulling = coin.SoSeparator.OFF
+    return separator
 
 
 def _depth(enabled: bool) -> Any:
@@ -430,7 +476,7 @@ def _packed_format() -> Any:
 
 
 def _depth_pass(width: int, height: int, camera: Any, scene: Any) -> Any:
-    depth_scene = coin.SoSeparator()
+    depth_scene = _separator()
     # off then on: SoAnnotation turns depth testing off behind Coin's back,
     # a change of value is what makes Coin turn it on again for real
     depth_scene.addChild(_depth(False))
@@ -463,34 +509,22 @@ def _composite_body() -> Any:
 
 def _pipeline(width: int, height: int, camera: Any, scene: Any,
               radius: float, intensity: float, quality: str,
-              temporal: bool, reuse: bool, helpers: list[Any]) -> Any:
+              temporal: bool, helpers: list[Any]) -> Any:
     """Depth, occlusion, blur and composite for one quality level."""
-    dirs, steps, depth_scale, ao_scale = QUALITY.get(
-        quality, QUALITY[DEFAULT_QUALITY])
+    budget = TEMPORAL_QUALITY if temporal else QUALITY
+    dirs, steps, depth_scale, ao_scale = budget.get(
+        quality, budget[DEFAULT_QUALITY])
     dw, dh = _scaled(width, depth_scale), _scaled(height, depth_scale)
     aw, ah = _scaled(width, ao_scale), _scaled(height, ao_scale)
 
-    source = None
-    if reuse and depth_reuse is not None:
-        source = depth_reuse.DepthSource(dw, dh)
-        helpers.append(source)
-        # never drawn: there only so that model edits re-render the AO
-        watch = coin.SoSwitch()
-        watch.whichChild = coin.SO_SWITCH_NONE
-        watch.addChild(scene)
-        depth_for_ao = [watch, source.bind_node(0)]
-        depth_for_composite = source.bind_node(1)
-    else:
-        depth_tex = _depth_pass(dw, dh, camera, scene)
-        depth_for_ao = [depth_tex]
-        depth_for_composite = depth_tex
+    depth_tex = _depth_pass(dw, dh, camera, scene)
 
     frame = _float('dt_frame', 0.0)
     occlusion = GTAO_FRAGMENT % {'dirs': dirs, 'steps': steps,
                                  'max_radius': repr(MAX_SCREEN_RADIUS),
                                  'power': repr(POWER)}
-    ao_scene = coin.SoSeparator()
-    for node in [camera, _unit(0), *depth_for_ao, _depth(False),
+    ao_scene = _separator()
+    for node in [camera, _unit(0), depth_tex, _depth(False),
                  _program(QUAD_VERTEX, occlusion,
                           [_sampler('dt_depthTex', 0),
                            _vec2('dt_texel', 1.0 / dw, 1.0 / dh),
@@ -502,7 +536,7 @@ def _pipeline(width: int, height: int, camera: Any, scene: Any,
         ao_scene.addChild(node)
     ao_tex = _texture(aw, ah, _packed_format(), ao_scene)
 
-    blur_scene = coin.SoSeparator()
+    blur_scene = _separator()
     for node in (_unit(0), ao_tex, _depth(False),
                  _program(QUAD_VERTEX, BLUR_FRAGMENT,
                           [_sampler('dt_aoTex', 0),
@@ -513,10 +547,8 @@ def _pipeline(width: int, height: int, camera: Any, scene: Any,
     blur_tex = _texture(aw, ah, _packed_format(), blur_scene)
 
     body = _composite_body()
-    if source is not None:
-        body.insertChild(source.copy_node, 0)   # before anything reads it
     body.addChild(_unit(1))
-    body.addChild(depth_for_composite)
+    body.addChild(depth_tex)
     body.addChild(_unit(0))
     body.addChild(blur_tex)
     if temporal and temporal_ao is not None:
@@ -530,13 +562,12 @@ def _pipeline(width: int, height: int, camera: Any, scene: Any,
                             _vec2('dt_aoSize', aw, ah),
                             _vec2('dt_depthSize', dw, dh),
                             _float('dt_radius', radius)]))
-    body.addChild(_quad())
+    body.addChild(_framed_quad())
     return body
 
 
 def build(width: int, height: int, camera: Any, scene: Any, radius: float,
-          intensity: float, quality: str, temporal: bool = False,
-          reuse: bool = False) -> Any:
+          intensity: float, quality: str, temporal: bool = False) -> Any:
     """Node tree of the effect, to be added right after the scene."""
     shrink = min(1.0, MAX_TEXTURE / max(width, height, 1))
     width = _scaled(width, shrink)
@@ -550,7 +581,7 @@ def build(width: int, height: int, camera: Any, scene: Any, radius: float,
     info = coin.SoInfo()
     info.setName(ROOT_NAME + 'Info')
     info.string = signature(width, height, camera, scene, radius, intensity,
-                            quality, temporal, reuse)
+                            quality, temporal)
     root.addChild(info)
 
     switch = coin.SoSwitch()
@@ -563,15 +594,13 @@ def build(width: int, height: int, camera: Any, scene: Any, radius: float,
     lod.whichChild = 0
     switch.addChild(lod)
     temporal = _use_temporal(temporal)
-    reuse = _use_reuse(reuse)
     helpers: list[Any] = []
     for level in (quality, INTERACTIVE):
         if level == INTERACTIVE and quality == INTERACTIVE:
             lod.addChild(lod.getChild(0))
         else:
             lod.addChild(_pipeline(width, height, camera, scene, radius,
-                                   intensity, level, temporal, reuse,
-                                   helpers))
+                                   intensity, level, temporal, helpers))
     if helpers:
         _helpers[view_utils.node_address(root)] = helpers
     return root

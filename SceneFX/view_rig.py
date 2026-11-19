@@ -63,7 +63,6 @@ class Settings:
         self.ao_radius = float(getattr(radius, 'Value', radius))
         self.ao_quality = str(getattr(cfg, 'AOQuality', 'High'))
         self.ao_temporal = bool(getattr(cfg, 'AOTemporal', False))
-        self.ao_depth_reuse = bool(getattr(cfg, 'AODepthReuse', False))
         self.catcher = bool(getattr(cfg, 'ShadowCatcher', False))
         self.navigation_mode = str(getattr(cfg, 'WhileNavigating', navigation.DEFAULT_MODE))
         self.navigation_delay = int(getattr(cfg, 'NavigationResumeDelay',
@@ -296,14 +295,14 @@ def _sync_ao(parts, settings, doc, mirrors):
     wanted_signature = ambient_occlusion.signature(
         max(int(width * shrink), 8), max(int(height * shrink), 8), camera, mirrors.ao,
         radius, settings.ao_intensity, settings.ao_quality,
-        settings.ao_temporal, settings.ao_depth_reuse)
+        settings.ao_temporal)
     if existing is not None:
         if ambient_occlusion.current_signature(existing) == wanted_signature:
             return
         _drop_ao(outer, existing, parts.view)
     outer.addChild(ambient_occlusion.build(
         width, height, camera, mirrors.ao, radius, settings.ao_intensity,
-        settings.ao_quality, settings.ao_temporal, settings.ao_depth_reuse))
+        settings.ao_quality, settings.ao_temporal))
 
 
 # ------------------------------------------------------------- shadow catcher

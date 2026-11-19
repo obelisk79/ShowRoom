@@ -41,14 +41,30 @@ class GLObjects:
 _retired: list[GLObjects] = []
 
 
+def _configure() -> None:
+    """Turn off PyOpenGL's checks, before its GL module is first loaded.
+
+    By default PyOpenGL calls glGetError after every GL call: a driver
+    round trip that can stall the GPU, on every call of every frame.  The
+    helpers check for errors where it matters.  Loaded first by other code,
+    PyOpenGL keeps that code's choice.
+    """
+    import OpenGL
+    OpenGL.ERROR_CHECKING = False
+    OpenGL.ERROR_LOGGING = False
+
+
 def load() -> Any:
     """PyOpenGL's GL module (raises ImportError where it is missing)."""
+    _configure()
     from OpenGL import GL
     return GL
 
 
 def missing_dependency() -> str | None:
     """Why the GL helpers cannot run here, or None if they can."""
+    with contextlib.suppress(ImportError):
+        _configure()
     for package in ('OpenGL.GL', 'numpy'):
         try:
             __import__(package)

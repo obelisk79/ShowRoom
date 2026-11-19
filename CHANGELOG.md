@@ -7,9 +7,9 @@ New
   heavy models, with a half-resolution blur and a depth-aware upsample.
 - *While navigating* can *Reduce ambient occlusion*: a cheaper level while the view moves.
   Older documents get the new choice when they are opened.
-- Two ambient occlusion options, in the scene settings: *Refine over frames* (`AOTemporal`)
-  and *Reuse the view's depth* (`AODepthReuse`). They need the optional package PyOpenGL;
-  without it they are greyed out, and they start off.
+- An ambient occlusion option, in the scene settings: *Refine over frames* (`AOTemporal`).
+  It needs the optional package PyOpenGL; without it the option is greyed out, and it
+  starts off.
 
 Fixed
 - The automatic AO radius and the scene's mirror groups are kept until the model changes,

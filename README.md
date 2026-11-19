@@ -153,12 +153,11 @@ makes shapes much easier to read.
 | `AORadius` | distance within which surfaces occlude each other; 0 = automatic (6 % of the size of the scene) |
 | `AOQuality` | Low / Medium / High: samples per pixel and resolution (new scenes: High) |
 | `AOTemporal` | refine over several frames: smoother, and keeps improving while the view is still |
-| `AODepthReuse` | reuse the view's depth instead of drawing the model again: faster on heavy models |
 
-`AOTemporal` and `AODepthReuse` need the optional Python package
+`AOTemporal` needs the optional Python package
 [PyOpenGL](https://pypi.org/project/PyOpenGL/) (with numpy). The Addon Manager offers it
-when ShowRoom is installed or updated; without it the two options are greyed out and the
-effect runs without them.
+when ShowRoom is installed or updated; without it the option is greyed out and the effect
+runs without it.
 
 ### Appearance and textures
 

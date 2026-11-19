@@ -14,9 +14,12 @@ unit 0:
    other of two history textures;
 3. the result is bound to unit 0, where the composite shader reads it.
 
-While the camera is still, a one-shot sensor bumps the occlusion shader's
-dt_frame uniform: only the AO and blur passes re-render, with new noise,
-until STILL_FRAMES frames have converged the picture.
+After each frame a one-shot sensor bumps the occlusion shader's dt_frame
+uniform, so the next frame searches other slices: while the camera moves
+the history adds them up (the per-frame budget is small, see
+ambient_occlusion.TEMPORAL_QUALITY); once it stops only the AO and blur
+passes re-render, with new noise, until STILL_FRAMES frames have
+converged the picture.
 """
 from __future__ import annotations
 
@@ -90,9 +93,15 @@ void main() {
 """
 
 
+#: set by a GL failure: the effect is rebuilt without the filter, at the
+#: full per-frame budget its few slices a frame relied on
+failed = False
+
+
 def available() -> bool:
-    """Whether PyOpenGL and numpy can be imported (says why not, once)."""
-    reason = gl_util.missing_dependency()
+    """Whether the filter can run here (says why not, once)."""
+    reason = ('disabled after a GL error' if failed
+              else gl_util.missing_dependency())
     if reason is not None:
         gl_util.warn_once('temporal', 'temporal AO unavailable (%s)'
                           % reason)
@@ -207,6 +216,7 @@ class Accumulator:
             for now, before in zip((view, projection), self.previous))
 
     def _render(self, data: Any, action: Any) -> None:
+        global failed
         render = coin.SoGLRenderAction.getClassTypeId()
         if self.disabled or self.frame is None or not action.isOfType(
                 render):
@@ -224,6 +234,7 @@ class Accumulator:
                 result = self._accumulate(gl, current, view, projection,
                                           moving)
         except Exception as exc:  # noqa: BLE001 - called from Coin's render
+            failed = True
             self.disabled = True
             gl_util.warn_once('temporal-gl',
                               'temporal AO disabled (%s)' % exc)
@@ -233,6 +244,7 @@ class Accumulator:
         self.previous = (view, projection)
         if moving:
             self.still = 0
+            self.sensor.schedule()   # other slices next frame
         elif self.still < STILL_FRAMES:
             self.still += 1
             self.sensor.schedule()

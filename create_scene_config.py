@@ -18,13 +18,13 @@ AO_INTENSITY_LIMITS = (0.0, 4.0, 0.1)
 AO_TOGGLES = (
     ('AOTemporal', 'Accumulate ambient occlusion over frames: smoother, and '
                    'it keeps refining while the view is still. Needs PyOpenGL'),
-    ('AODepthReuse', "Reuse the view's depth instead of drawing the model a "
-                     'second time: faster on heavy models. Needs PyOpenGL'),
 )
+#: properties of earlier versions, dropped when a document is opened
+RETIRED_PROPERTIES = ('AODepthReuse',)
 
 EFFECT_PROPERTIES = ('Shadows', 'ShadowDarkness', 'ShadowSoftness', 'ShadowQuality',
                      'AmbientOcclusion', 'AOIntensity', 'AORadius', 'AOQuality',
-                     'AOTemporal', 'AODepthReuse',
+                     'AOTemporal',
                      'WhileNavigating', 'NavigationResumeDelay', 'ShadowCatcher')
 
 
@@ -121,6 +121,9 @@ class CreateSceneConfig(object):
                             "come back").NavigationResumeDelay = (250, 0, 5000, 50)
 
     def onDocumentRestored(self, obj):
+        for name in RETIRED_PROPERTIES:
+            if name in obj.PropertiesList:
+                obj.removeProperty(name)
         self.setProperties(obj)
         from SceneFX import navigation
         _enumeration(obj, 'WhileNavigating', navigation.MODES)
