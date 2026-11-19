@@ -270,7 +270,10 @@ def _sync_catcher(parts, settings, doc, mirrors, lights):
     if outer is None:
         return
     existing = view_utils.find_child(outer, shadow_catcher.ROOT_NAME)
-    box = view_utils.scene_bound_box(parts.view, doc) if settings.catcher else None
+    # paused while a sketch is busy: its texture redraws the model, and Sketcher
+    # rebuilds the sketch's nodes in the middle of that (crash)
+    catcher = settings.catcher and not navigation._editing
+    box = view_utils.scene_bound_box(parts.view, doc) if catcher else None
     if box is None or not ambient_occlusion.available():
         if existing is not None:
             outer.removeChild(existing)
@@ -506,11 +509,22 @@ def _sketch_busy():
 _edit_timer = None
 
 
+def _resync_now():
+    """Bring every open document's effects in line with the pause, right away."""
+    for doc in list(FreeCAD.listDocuments().values()):
+        try:
+            sync_document(doc)
+        except Exception:
+            pass
+
+
 def _pause_for_edit():
     """Pause the shadows right away (Coin's shadow pass crashes on the nodes
     Sketcher builds while entering edit), and check later when to resume."""
     global _edit_timer
-    navigation.editing(True)
+    if not navigation._editing:
+        navigation.editing(True)
+        _resync_now()
     if _edit_timer is None:
         from PySide import QtCore
         import FreeCADGui
@@ -524,6 +538,7 @@ def _resume_if_idle():
     if not _sketch_busy():
         _edit_timer.stop()
         navigation.editing(False)
+        _resync_now()
 
 
 class _EditObserver:

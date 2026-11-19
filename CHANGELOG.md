@@ -1,5 +1,11 @@
 # Changelog
 
+## ShowRoom 1.1.3
+
+Fixed
+- With the shadow catcher on, FreeCAD crashed when a sketch was created or opened for editing:
+  the catcher now pauses together with the shadows while a sketch is selected or edited.
+
 ## ShowRoom 1.1.1
 
 Fixed
