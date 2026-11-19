@@ -1,5 +1,15 @@
 # Changelog
 
+## ShowRoom 1.1.5
+
+Fixed
+- With ambient occlusion on, the origin planes could not be picked (no plane for a new sketch).
+  While a task panel of another workbench is open (Create sketch, attachment, features) or a
+  sketch is busy, the effects pause and come back afterwards.
+
+Changed
+- Settings panel: ambient occlusion comes before shadows in the default scene.
+
 ## ShowRoom 1.1.4
 
 Fixed

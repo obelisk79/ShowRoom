@@ -56,7 +56,7 @@ class Settings:
         self.shadow_darkness = float(getattr(cfg, 'ShadowDarkness', 0.5))
         self.shadow_softness = float(getattr(cfg, 'ShadowSoftness', 0.3))
         self.shadow_quality = str(getattr(cfg, 'ShadowQuality', 'High'))
-        self.ao = bool(getattr(cfg, 'AmbientOcclusion', False))
+        self.ao = bool(getattr(cfg, 'AmbientOcclusion', False)) and not navigation._editing     # origin planes stay pickable
         self.ao_intensity = float(getattr(cfg, 'AOIntensity', 1.0))
         radius = getattr(cfg, 'AORadius', 0.0)
         self.ao_radius = float(getattr(radius, 'Value', radius))
@@ -503,9 +503,25 @@ def _sketch_busy():
             gdoc = FreeCADGui.getDocument(name)
             if gdoc is not None and gdoc.getInEdit() is not None:
                 return True
+        if _foreign_dialog():
+            return True
         return any(_is_sketch(o) for o in FreeCADGui.Selection.getSelection())
     except Exception:
         return False
+
+
+def _foreign_dialog():
+    """A task panel that is not one of ShowRoom's is open (Create sketch's plane
+    choice, attachment, feature panels): the effects pause, so that the origin
+    planes can be picked and Sketcher does not meet the shadow pass."""
+    import FreeCADGui
+    if not FreeCADGui.Control.activeDialog():
+        return False
+    try:
+        from dtpanels import bridge
+        return bridge.current() is None
+    except Exception:
+        return True
 
 
 _edit_timer = None
@@ -646,6 +662,8 @@ def _watch():
     radius, on the size of the scene.  None of these can be observed from
     Python, so they are polled; nothing is touched unless something changed.
     The navigation watcher needs the current camera node too."""
+    if not navigation._editing and _foreign_dialog():
+        _pause_for_edit()
     docs = _ao_documents()
     if not docs:
         _watch_timer.stop()
