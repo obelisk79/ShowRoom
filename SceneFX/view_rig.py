@@ -481,29 +481,7 @@ class _DocumentObserver:
                 pass
 
 
-class _EditObserver:
-    """Edit mode starts and ends. Never add slotChangedObject here: see textures.py."""
-
-    def slotInEdit(self, vobj):
-        navigation.editing(True)
-
-    def slotResetEdit(self, vobj):
-        navigation.editing(False)
-
-
-_edit_observer = None
-
-
-def _watch_edits():
-    global _edit_observer
-    if _edit_observer is None:
-        import FreeCADGui
-        _edit_observer = _EditObserver()
-        FreeCADGui.addDocumentObserver(_edit_observer)
-
-
 def _ensure_hooks():
-    _watch_edits()
     global _timer, _watch_timer, _observer, _bridge
     if _bridge is not None:
         return
