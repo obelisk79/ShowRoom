@@ -98,7 +98,7 @@ class _ViewState:
     def apply(self):
         """Put the effect nodes in the state ``paused`` and ``mode`` call for."""
         ao_on = not (self.paused and self.mode in (MODE_NO_AO, MODE_NONE))
-        shadows_on = not (self.paused and self.mode == MODE_NONE)
+        shadows_on = not (self.paused and self.mode == MODE_NONE) and not _editing
         if self.ao_switch is not None:
             wanted = coin.SO_SWITCH_ALL if ao_on else coin.SO_SWITCH_NONE
             if self.ao_switch.whichChild.getValue() != wanted:
@@ -164,6 +164,18 @@ def forget_except(views):
     for key in list(_states):
         if key not in alive:
             _states.pop(key).release()
+
+
+_editing = False
+
+
+def editing(on):
+    """Shadows off while an object is edited (a sketch, a feature): Coin's shadow
+    pass crashes on the nodes edit modes add and remove in the scene."""
+    global _editing
+    _editing = bool(on)
+    for state in _states.values():
+        state.apply()
 
 
 def hold(on):
