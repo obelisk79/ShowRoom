@@ -501,7 +501,8 @@ def _sketch_busy():
     try:
         for name in FreeCAD.listDocuments():
             gdoc = FreeCADGui.getDocument(name)
-            if gdoc is not None and gdoc.getInEdit() is not None:
+            vp = gdoc.getInEdit() if gdoc is not None else None
+            if vp is not None and _is_sketch(getattr(vp, 'Object', None)):
                 return True
         if _foreign_dialog():
             return True
@@ -510,18 +511,26 @@ def _sketch_busy():
         return False
 
 
+_PICK_PANELS = ('TaskFeaturePick', 'TaskAttacher')
+
+
 def _foreign_dialog():
-    """A task panel that is not one of ShowRoom's is open (Create sketch's plane
-    choice, attachment, feature panels): the effects pause, so that the origin
-    planes can be picked and Sketcher does not meet the shadow pass."""
+    """Create sketch's plane choice or an attachment panel is open: the effects
+    pause, so that the origin planes can be picked (ambient occlusion hides
+    them from picking).  Other task panels (Pad, Pocket...) keep the effects."""
     import FreeCADGui
     if not FreeCADGui.Control.activeDialog():
         return False
     try:
-        from dtpanels import bridge
-        return bridge.current() is None
+        from PySide import QtGui
+        mw = FreeCADGui.getMainWindow()
+        for w in mw.findChildren(QtGui.QWidget):
+            cls = w.metaObject().className().split('::')[-1]
+            if cls in _PICK_PANELS and w.isVisible():
+                return True
     except Exception:
-        return True
+        pass
+    return False
 
 
 _edit_timer = None
@@ -563,7 +572,8 @@ class _EditObserver:
     """Edit mode starts and ends. Never add slotChangedObject here: see textures.py."""
 
     def slotInEdit(self, vobj):
-        _pause_for_edit()
+        if _is_sketch(getattr(vobj, 'Object', None)):
+            _pause_for_edit()
 
     def slotResetEdit(self, vobj):
         _pause_for_edit()       # resumes at the next check if nothing else holds it

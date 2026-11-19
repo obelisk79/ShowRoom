@@ -1,5 +1,9 @@
 # Changelog
 
+## ShowRoom 1.1.6
+
+- Effects pause only for Create sketch's plane choice, attachment panels and sketch editing; Pad, Pocket and other task panels keep them.
+
 ## ShowRoom 1.1.5
 
 Fixed
