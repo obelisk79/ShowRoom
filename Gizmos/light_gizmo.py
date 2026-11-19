@@ -155,7 +155,10 @@ class LightGizmo:
     def __init__(self, vp):
         self.vp = vp
         self.obj = vp.Object
-        self.kind = self.obj.Proxy.type
+        # when a file is opened the view provider is attached before the light's
+        # Proxy is restored: take the kind from the view provider's class then
+        self.kind = getattr(getattr(self.obj, 'Proxy', None), 'type', None) or \
+            type(vp).__name__.replace('ViewProvider', '')
         self.selected = False
         self.hover = None
         self.grips = {}             # name -> 3D point, for hit testing

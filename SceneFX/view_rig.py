@@ -50,7 +50,9 @@ class Settings:
     def __init__(self, doc):
         import create_scene_config
         cfg = create_scene_config.getSceneFolder(doc)
-        self.shadows = bool(getattr(cfg, 'Shadows', False))
+        # while a sketch is busy the shadow node leaves the scene altogether: just
+        # switching it off (isActive) still crashes on real GPUs
+        self.shadows = bool(getattr(cfg, 'Shadows', False)) and not navigation._editing
         self.shadow_darkness = float(getattr(cfg, 'ShadowDarkness', 0.5))
         self.shadow_softness = float(getattr(cfg, 'ShadowSoftness', 0.3))
         self.shadow_quality = str(getattr(cfg, 'ShadowQuality', 'High'))

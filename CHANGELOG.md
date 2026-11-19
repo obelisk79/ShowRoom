@@ -1,5 +1,11 @@
 # Changelog
 
+## ShowRoom 1.1.4
+
+Fixed
+- Same as 1.0.3: no shadow node in the scene while a sketch is busy (the real fix of the sketch
+  crash), and gizmos for lights in opened files.
+
 ## ShowRoom 1.1.3
 
 Fixed
