@@ -1,5 +1,14 @@
 # Changelog
 
+## ShowRoom 1.0.3
+
+Fixed
+- FreeCAD crashed when a sketch was created or opened for editing with real-time shadows on
+  (seen on AMD and NVIDIA GPUs). While a sketch is created, selected or edited, the scene is
+  built as with shadows off (and without the shadow catcher); both come back afterwards.
+- Lights had no gizmo in documents opened from a file (their view provider is built before
+  the light object is restored).
+
 ## ShowRoom 1.0.1
 
 Fixed
