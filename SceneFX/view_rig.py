@@ -452,8 +452,6 @@ class _DocumentObserver:
     """Anything that can add, remove or bring back a light triggers a sync."""
 
     def slotCreatedObject(self, obj):
-        if _is_sketch(obj):
-            _pause_for_edit()       # before Sketcher opens it for editing
         schedule_sync(obj.Document)
 
     def slotDeletedObject(self, obj):
@@ -483,66 +481,14 @@ class _DocumentObserver:
                 pass
 
 
-def _is_sketch(obj):
-    try:
-        return obj.isDerivedFrom('Sketcher::SketchObject')
-    except Exception:
-        return False
-
-
-def _sketch_busy():
-    """A sketch is selected or something is in edit: shadows must stay paused."""
-    import FreeCADGui
-    try:
-        for name in FreeCAD.listDocuments():
-            gdoc = FreeCADGui.getDocument(name)
-            if gdoc is not None and gdoc.getInEdit() is not None:
-                return True
-        return any(_is_sketch(o) for o in FreeCADGui.Selection.getSelection())
-    except Exception:
-        return False
-
-
-_edit_timer = None
-
-
-def _pause_for_edit():
-    """Pause the shadows right away (Coin's shadow pass crashes on the nodes
-    Sketcher builds while entering edit), and check later when to resume."""
-    global _edit_timer
-    navigation.editing(True)
-    if _edit_timer is None:
-        from PySide import QtCore
-        import FreeCADGui
-        _edit_timer = QtCore.QTimer(FreeCADGui.getMainWindow())
-        _edit_timer.setInterval(500)
-        _edit_timer.timeout.connect(_resume_if_idle)
-    _edit_timer.start()
-
-
-def _resume_if_idle():
-    if not _sketch_busy():
-        _edit_timer.stop()
-        navigation.editing(False)
-
-
 class _EditObserver:
     """Edit mode starts and ends. Never add slotChangedObject here: see textures.py."""
 
     def slotInEdit(self, vobj):
-        _pause_for_edit()
+        navigation.editing(True)
 
     def slotResetEdit(self, vobj):
-        _pause_for_edit()       # resumes at the next check if nothing else holds it
-
-
-class _SketchSelection:
-    def _check(self, *args):
-        import FreeCADGui
-        if any(_is_sketch(o) for o in FreeCADGui.Selection.getSelection()):
-            _pause_for_edit()
-
-    addSelection = setSelection = _check
+        navigation.editing(False)
 
 
 _edit_observer = None
@@ -552,9 +498,8 @@ def _watch_edits():
     global _edit_observer
     if _edit_observer is None:
         import FreeCADGui
-        _edit_observer = (_EditObserver(), _SketchSelection())
-        FreeCADGui.addDocumentObserver(_edit_observer[0])
-        FreeCADGui.Selection.addObserver(_edit_observer[1])
+        _edit_observer = _EditObserver()
+        FreeCADGui.addDocumentObserver(_edit_observer)
 
 
 def _ensure_hooks():

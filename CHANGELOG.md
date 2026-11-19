@@ -4,8 +4,7 @@
 
 Fixed
 - FreeCAD crashed when a sketch was opened for editing with shadows on (now the default in new
-  documents): shadows pause as soon as a sketch is created or selected and while an object is
-  in edit mode, and come back afterwards.
+  documents): shadows pause while an object is in edit mode.
 - A document created by Part Design's *Create body* (or *Create part*) did not get the scene.
 
 ## ShowRoom 1.1.0
