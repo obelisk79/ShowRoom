@@ -72,7 +72,7 @@ class UniversalLight:
                             "The intensity of the light").Intensity = (DEFAULT_INTENSITY,) + INTENSITY_LIMITS
         if 'ShowManipulator' not in pl:
             obj.addProperty("App::PropertyBool", "ShowManipulator", "Manipulator",
-                            "Show the gizmo of the light in the 3D view").ShowManipulator = _show_gizmos()
+                            "Show the gizmo of the light in the 3D view").ShowManipulator = True
         if 'Scale' not in pl:
             obj.addProperty("App::PropertyIntegerConstraint", "Scale", "Manipulator",
                             "Size of the manipulator").Scale = (5,) + SCALE_LIMITS
@@ -294,11 +294,6 @@ def gizmoScaleFor(size):
     step = SCALE_LIMITS[2]
     value = int(round(size / 30.0 * SCALE_UNIT / step)) * step
     return min(max(value, SCALE_LIMITS[0]), SCALE_LIMITS[1])
-
-
-def _show_gizmos():
-    from Utils import prefs
-    return prefs.get('ShowGizmos')
 
 
 def addToScene(obj):

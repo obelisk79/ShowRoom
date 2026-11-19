@@ -65,9 +65,7 @@ def apply(obj, image_path, scale=None, rotation=None):
     if 'TextureScale' not in pl:
         obj.addProperty("App::PropertyLength", "TextureScale", "Texture",
                         "Size of one repetition of the image")
-        from Utils import prefs
-        fixed = prefs.get('DefTileSize')
-        obj.TextureScale = scale if scale else (fixed if fixed > 0 else default_scale(obj))
+        obj.TextureScale = scale if scale else default_scale(obj)
     elif scale:
         obj.TextureScale = scale
     if 'TextureRotation' not in pl:

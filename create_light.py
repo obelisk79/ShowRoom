@@ -51,13 +51,6 @@ class _DocumentCommand:
         return FreeCAD.ActiveDocument is not None
 
 
-def _new_scene(doc):
-    from SceneFX import autoscene
-    cfg = create_scene_config.createSceneFolder(doc)
-    autoscene.apply_defaults(cfg)
-    return cfg
-
-
 class CreateSceneConfigCommand(_DocumentCommand):
     toolbarName = TOOLBAR
     commandName = 'ShowRoom_SceneConfig'
@@ -78,7 +71,7 @@ class CreateSceneConfigCommand(_DocumentCommand):
             return
         cfg = create_scene_config.getSceneFolder(doc)
         if cfg is None:
-            createAndEdit(doc, "Scene settings", lambda: _new_scene(doc))
+            createAndEdit(doc, "Scene settings", lambda: create_scene_config.createSceneFolder(doc))
         else:
             bridge.edit(cfg)
 

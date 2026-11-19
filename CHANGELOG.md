@@ -1,14 +1,5 @@
 # Changelog
 
-## ShowRoom 1.1.0
-
-New
-- *ShowRoom settings…* (gear, last toolbar button): startup, what every new document starts
-  with (scene, lights, grid), the default scene (shadows, catcher, ambient occlusion,
-  navigation), gizmos, panels, textures, export and reset.
-- New documents get the scene, three-point lights and the dynamic grid by default, without
-  being marked as modified. Documents created by scripts and opened files are left alone.
-
 ## ShowRoom 1.0.1
 
 Fixed

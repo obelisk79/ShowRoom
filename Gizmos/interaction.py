@@ -263,9 +263,6 @@ class _Drag:
 
     def _surface_point(self, pos):
         """Point of the model under the pointer (not of a light or a grid)."""
-        from Utils import prefs
-        if not prefs.get('SnapTarget'):
-            return None
         try:
             info = self.view.getObjectInfo((int(pos[0]), int(pos[1])))
         except Exception:

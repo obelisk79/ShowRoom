@@ -42,7 +42,7 @@ documents made with Display Tools as they are (see [Coming from Display Tools](#
 * [Appearance and textures](#appearance-and-textures)
 * [Turntable](#turntable) · [Fluid navigation](#fluid-navigation)
 * [Dynamic grid](#dynamic-grid) · [SpaceMouse axis locks](#spacemouse-axis-locks)
-* [Task panels](#task-panels) · [ShowRoom settings](#showroom-settings) · [Installation](#installation) · [License](#license)
+* [Task panels](#task-panels) · [Installation](#installation) · [License](#license)
 
 ## Features
 
@@ -261,25 +261,6 @@ The panels are written in QML and take colors and font from the FreeCAD theme. I
 missing from a FreeCAD build, an equivalent widget panel is used instead. Text size:
 `FontScale` in `Preferences/Mod/ShowRoom` (parameter editor); `UseQml` = false forces the
 widget panels.
-
-### ShowRoom settings
-
-The last toolbar button (*ShowRoom settings…*, a gear) opens ShowRoom's own settings in the task
-panel, with or without a document open. OK saves them in `Preferences/Mod/ShowRoom`, Cancel
-leaves them as they were.
-
-* **Startup**: load ShowRoom when FreeCAD starts (textures, lights and the scene work in every
-  file without opening the workbench), open FreeCAD in the ShowRoom workbench.
-* **New documents**: add the scene to every new document, with starting lights (none, sun,
-  three-point, studio), the dynamic grid and its ground plane; optionally also to opened files
-  that have no scene. Files that have a scene always keep their own.
-* **Default scene**: shadows (quality, darkness, softness), shadow catcher, ambient occlusion
-  (quality, intensity) and the navigation mode every new scene starts with. *Use the current
-  scene* copies them from the active document, *Factory defaults* puts them back.
-* **3D view**: floating light panel, gizmos on new lights, gizmo size, snapping of the spot
-  target to surfaces.
-* **Panels and textures**: text size, QML or widget panels, a fixed texture tile size.
-* **Maintenance**: the Display Tools warning, *Export settings…*, *Reset all*.
 
 ## Coming from Display Tools
 

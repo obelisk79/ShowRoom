@@ -27,4 +27,3 @@ import create_helper_tools   # noqa: E402,F401
 import create_fx_tools       # noqa: E402,F401
 import create_texture_tools  # noqa: E402,F401
 import spaceNav_tools        # noqa: E402,F401
-import create_settings_tools  # noqa: E402,F401
