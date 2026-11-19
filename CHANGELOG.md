@@ -1,10 +1,5 @@
 # Changelog
 
-## ShowRoom 1.1.1
-
-Fixed
-- A document created by Part Design's *Create body* (or *Create part*) did not get the scene.
-
 ## ShowRoom 1.1.0
 
 New
