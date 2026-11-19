@@ -83,8 +83,14 @@ def build(caster_scene, quality):
     texture = fx._texture(resolution, resolution, coin.SoSceneTexture2.RGBA8, scene)
     texture.setName(ROOT_NAME + 'Texture')
 
-    root = coin.SoSeparator()
+    # drawn in the end-of-frame phase, like ambient occlusion: from inside the
+    # normal pass, the texture's redraw queues FreeCAD's "on top" paths
+    # (a selected sketch) from our node and Coin replays them off the end of
+    # a child list (see ambient_occlusion.py, "Crash to avoid")
+    root = coin.SoAnnotation()
     root.setName(ROOT_NAME)
+    root.renderCulling = coin.SoSeparator.OFF
+    root.pickCulling = coin.SoSeparator.OFF
     info = coin.SoInfo()
     info.setName(ROOT_NAME + 'Info')
     info.string = signature(resolution, caster_scene)
@@ -110,7 +116,10 @@ def build(caster_scene, quality):
     root.addChild(fx._unit(0))
     root.addChild(texture)
     # after the texture (see ambient_occlusion._depth): hidden by the model in
-    # front of it, but not hiding anything itself
+    # front of it, but not hiding anything itself.  Off first: SoAnnotation
+    # turns depth testing off behind Coin's back, and only a change of value
+    # makes Coin turn it on again
+    root.addChild(fx._depth(False))
     depth = coin.SoDepthBuffer()
     depth.test = True
     depth.write = False

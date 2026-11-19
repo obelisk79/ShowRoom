@@ -1,17 +1,10 @@
 # Changelog
 
-## ShowRoom 1.1.3
-
-Fixed
-- With the shadow catcher on, FreeCAD crashed when a sketch was created or opened for editing:
-  the catcher now pauses together with the shadows while a sketch is selected or edited.
-
 ## ShowRoom 1.1.1
 
 Fixed
-- FreeCAD crashed when a sketch was opened for editing with shadows on (now the default in new
-  documents): shadows pause as soon as a sketch is created or selected and while an object is
-  in edit mode, and come back afterwards.
+- With the shadow catcher on, FreeCAD crashed when a sketch was created, selected or opened
+  for editing: the catcher is now drawn at the end of the frame, as ambient occlusion is.
 - A document created by Part Design's *Create body* (or *Create part*) did not get the scene.
 
 ## ShowRoom 1.1.0
