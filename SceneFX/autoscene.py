@@ -53,14 +53,24 @@ def _eligible(doc):
         return False
 
 
+#: what a command that opens a new document may already have put in it
+#: (Part Design's "Create body" makes the document and the body together)
+STARTERS = ('PartDesign::Body', 'App::Part', 'App::Origin', 'App::Line', 'App::Plane',
+            'App::Point', 'App::DatumElement', 'App::LocalCoordinateSystem')
+
+
 def _new_document(name):
     doc = App.listDocuments().get(name)
-    # opened files have a file name by now; scripts fill theirs right away
-    if not _eligible(doc) or doc.FileName or doc.Objects or not prefs.get('AutoScene'):
+    # opened files have a file name by now; scripts fill theirs with other objects
+    if not _eligible(doc) or doc.FileName or not prefs.get('AutoScene'):
         return
+    if any(o.TypeId not in STARTERS for o in doc.Objects):
+        return
+    empty = not doc.Objects
     populate(doc)
-    doc.clearUndos()
-    _not_modified(doc)
+    if empty:
+        doc.clearUndos()
+        _not_modified(doc)
 
 
 def _opened_document(name):
