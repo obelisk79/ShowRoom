@@ -35,7 +35,12 @@ class ShowRoomWorkbench(Workbench):
             pass
 
     def Activated(self):
-        return
+        import FreeCAD
+        for module in ("SceneFX.textures", "dtpanels.overlay", "SceneFX.autoscene"):
+            try:
+                __import__(module, fromlist=["install"]).install()
+            except Exception as error:
+                FreeCAD.Console.PrintWarning("ShowRoom: %s: %s\n" % (module, error))
 
     def Deactivated(self):
         return
@@ -69,6 +74,9 @@ def _warnDisplayTools():
     """Display Tools and ShowRoom share their modules: only one of them may be installed."""
     import os
     import FreeCAD
+    if not FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/ShowRoom").GetBool(
+            "WarnDisplayTools", True):
+        return
     folders = [os.path.join(FreeCAD.getUserAppDataDir(), "Mod")]
     try:
         folders.append(os.path.join(FreeCAD.getHomePath(), "Mod"))
@@ -93,28 +101,24 @@ _migratePreferences()
 _warnDisplayTools()
 
 
-def _watchTextures():
-    """Textures sit on ordinary objects: they have to come back when a document
-    is opened, also if this workbench has not been activated yet."""
+
+def _startServices():
+    """Textures, the floating light panel and the scene of new documents (once).
+    Self-contained: FreeCAD runs this file with separate namespaces."""
     import FreeCAD
-    try:
-        from SceneFX import textures
-        textures.install()
-    except Exception as error:
-        FreeCAD.Console.PrintWarning("ShowRoom: textures not available: %s\n" % error)
+    for module, label in (("SceneFX.textures", "textures"), ("dtpanels.overlay", "in-view light panel"),
+                          ("SceneFX.autoscene", "automatic scene")):
+        try:
+            __import__(module, fromlist=["install"]).install()
+        except Exception as error:
+            FreeCAD.Console.PrintWarning("ShowRoom: %s not available: %s\n" % (label, error))
 
 
-_watchTextures()
-
-
-def _watchLights():
-    """The floating panel follows the selection of lights in every document."""
+def _loadAtStartup():
     import FreeCAD
-    try:
-        from dtpanels import overlay
-        overlay.install()
-    except Exception as error:
-        FreeCAD.Console.PrintWarning("ShowRoom: in-view light panel not available: %s\n" % error)
+    return FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/ShowRoom").GetBool(
+        "LoadAtStartup", True)
 
 
-_watchLights()
+if _loadAtStartup():
+    _startServices()

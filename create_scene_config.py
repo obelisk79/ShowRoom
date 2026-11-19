@@ -3,6 +3,7 @@
 """The scene configuration: a tree folder holding the lights and helpers of a
 document, plus the per-document settings of the viewport effects."""
 import FreeCAD
+from Utils import prefs
 
 from Utils.resource_utils import iconPath
 
@@ -41,15 +42,15 @@ class CreateSceneConfig(object):
                             "lights that have CastShadows enabled").Shadows = False
         if 'ShadowDarkness' not in pl:
             obj.addProperty("App::PropertyFloatConstraint", "ShadowDarkness", "Shadows",
-                            "How dark the shadows are").ShadowDarkness = (0.5,) + UNIT_LIMITS
+                            "How dark the shadows are").ShadowDarkness = (prefs.get("DefShadowDarkness"),) + UNIT_LIMITS
         if 'ShadowSoftness' not in pl:
             obj.addProperty("App::PropertyFloatConstraint", "ShadowSoftness", "Shadows",
-                            "Blur of the shadow borders").ShadowSoftness = (0.3,) + UNIT_LIMITS
+                            "Blur of the shadow borders").ShadowSoftness = (prefs.get("DefShadowSoftness"),) + UNIT_LIMITS
         if 'ShadowQuality' not in pl:
             obj.addProperty("App::PropertyEnumeration", "ShadowQuality", "Shadows",
                             "Resolution of the shadow maps. High needs a decent graphics card")
             obj.ShadowQuality = SHADOW_QUALITIES
-            obj.ShadowQuality = 'High'
+            obj.ShadowQuality = prefs.get('DefShadowQuality')
         if 'ShadowCatcher' not in pl:
             obj.addProperty("App::PropertyBool", "ShadowCatcher", "Shadows",
                             "Soft shadow of the model on an invisible ground, at the lowest "
@@ -66,7 +67,7 @@ class CreateSceneConfig(object):
                             "areas in the 3D view").AmbientOcclusion = False
         if 'AOIntensity' not in pl:
             obj.addProperty("App::PropertyFloatConstraint", "AOIntensity", "Ambient Occlusion",
-                            "Strength of the darkening").AOIntensity = (1.0,) + AO_INTENSITY_LIMITS
+                            "Strength of the darkening").AOIntensity = (prefs.get("DefAOIntensity"),) + AO_INTENSITY_LIMITS
         if 'AORadius' not in pl:
             obj.addProperty("App::PropertyLength", "AORadius", "Ambient Occlusion",
                             "Distance within which surfaces occlude each other. "
@@ -75,14 +76,14 @@ class CreateSceneConfig(object):
             obj.addProperty("App::PropertyEnumeration", "AOQuality", "Ambient Occlusion",
                             "Number of samples and resolution of the effect")
             obj.AOQuality = AO_QUALITIES
-            obj.AOQuality = 'High'
+            obj.AOQuality = prefs.get('DefAOQuality')
         if 'WhileNavigating' not in pl:
             from SceneFX import navigation
             obj.addProperty("App::PropertyEnumeration", "WhileNavigating", "Performance",
                             "What to do with the effects while the view is rotated, panned or "
                             "zoomed. Pausing them keeps navigation fluid on heavy models")
             obj.WhileNavigating = navigation.MODES
-            obj.WhileNavigating = navigation.DEFAULT_MODE
+            obj.WhileNavigating = prefs.get('DefWhileNavigating')
         if 'NavigationResumeDelay' not in pl:
             obj.addProperty("App::PropertyIntegerConstraint", "NavigationResumeDelay", "Performance",
                             "Milliseconds the view has to stay still before the paused effects "

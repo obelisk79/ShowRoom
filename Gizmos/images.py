@@ -23,7 +23,8 @@ def scale():
     """Device pixels per logical pixel of the screen the main window is on."""
     try:
         import FreeCADGui
-        return max(1.0, float(FreeCADGui.getMainWindow().devicePixelRatioF()))
+        from Utils import prefs
+        return max(1.0, float(FreeCADGui.getMainWindow().devicePixelRatioF())) * prefs.gizmo_factor()
     except Exception:
         return 1.0
 

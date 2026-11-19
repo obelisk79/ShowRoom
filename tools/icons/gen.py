@@ -340,6 +340,23 @@ def icon_spnav_horizon():
     return out
 
 
+def icon_settings():
+    out = backdrop(axes=False)
+    out += ['<ellipse cx="52" cy="88" rx="30" ry="7" fill="#000" opacity="0.3" filter="url(#blur)"/>']
+    cx, cy, r1, r2, n = 52, 50, 34, 26, 8
+    import math as _m
+    pts = []
+    for i in range(n * 2):
+        a = _m.pi * i / n
+        rr = r1 if i % 2 == 0 else r2
+        for da in (-0.17, 0.17):
+            pts.append((cx + rr * _m.cos(a + da), cy + rr * _m.sin(a + da)))
+    d = 'M ' + ' '.join('%g,%g' % p for p in pts) + ' Z'
+    out += ['<path d="%s M %g,%g a 13,13 0 1,0 26,0 a 13,13 0 1,0 -26,0 Z" fill="url(#sun)" fill-rule="evenodd" stroke="#6b3b00" stroke-width="1.4" stroke-linejoin="round"/>' % (d, cx - 13, cy)]
+    out += close_backdrop()
+    return out
+
+
 ICONS = {
     'ShowRoom.svg': icon_showroom,
     'Appearance.svg': icon_appearance,
@@ -353,6 +370,7 @@ ICONS = {
     'SpNav.svg': icon_spnav_rot,
     'SpNav_LockTrans.svg': icon_spnav_trans,
     'SpNav_LockHor.svg': icon_spnav_horizon,
+    'Settings.svg': icon_settings,
 }
 
 if __name__ == '__main__':
