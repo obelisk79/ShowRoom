@@ -64,10 +64,6 @@ QUALITY = {
 INTERACTIVE = 'Interactive'
 DEFAULT_QUALITY = 'Medium'
 
-#: defaults of the document toggles AOTemporal and AODepthReuse
-TEMPORAL = True
-DEPTH_REUSE = True
-
 #: largest sampling disc, as a fraction of the view: a smaller one shrinks
 #: the radius of a zoomed-in part to a thin line along its contacts
 MAX_SCREEN_RADIUS = 0.2
@@ -281,8 +277,9 @@ void main() {
 }
 """
 
-#: GL helpers whose Python callbacks must live as long as their nodes
-_keep_alive: list[Any] = []
+#: The GL helpers of each effect, by its root's address: their Python
+#: callbacks must live as long as their nodes, and ``release`` frees them.
+_helpers: dict[int, list[Any]] = {}
 
 
 def _use_temporal(wanted: bool) -> bool:
@@ -305,7 +302,7 @@ def available() -> bool:
 
 def signature(width: int, height: int, camera: Any, scene: Any,
               radius: float, intensity: float, quality: str,
-              temporal: bool = TEMPORAL, reuse: bool = DEPTH_REUSE) -> str:
+              temporal: bool = False, reuse: bool = False) -> str:
     """Everything the node tree depends on: a new signature, a rebuild.
 
     The effective toggles are part of it, so depth reuse that failed is
@@ -466,7 +463,7 @@ def _composite_body() -> Any:
 
 def _pipeline(width: int, height: int, camera: Any, scene: Any,
               radius: float, intensity: float, quality: str,
-              temporal: bool, reuse: bool) -> Any:
+              temporal: bool, reuse: bool, helpers: list[Any]) -> Any:
     """Depth, occlusion, blur and composite for one quality level."""
     dirs, steps, depth_scale, ao_scale = QUALITY.get(
         quality, QUALITY[DEFAULT_QUALITY])
@@ -476,7 +473,7 @@ def _pipeline(width: int, height: int, camera: Any, scene: Any,
     source = None
     if reuse and depth_reuse is not None:
         source = depth_reuse.DepthSource(dw, dh)
-        _keep_alive.append(source)
+        helpers.append(source)
         # never drawn: there only so that model edits re-render the AO
         watch = coin.SoSwitch()
         watch.whichChild = coin.SO_SWITCH_NONE
@@ -524,7 +521,7 @@ def _pipeline(width: int, height: int, camera: Any, scene: Any,
     body.addChild(blur_tex)
     if temporal and temporal_ao is not None:
         accumulator = temporal_ao.Accumulator(aw, ah, frame)
-        _keep_alive.append(accumulator)
+        helpers.append(accumulator)
         body.addChild(accumulator.node)
     body.addChild(_depth(False))
     body.addChild(_program(QUAD_VERTEX, COMPOSITE_FRAGMENT,
@@ -538,8 +535,8 @@ def _pipeline(width: int, height: int, camera: Any, scene: Any,
 
 
 def build(width: int, height: int, camera: Any, scene: Any, radius: float,
-          intensity: float, quality: str, temporal: bool = TEMPORAL,
-          reuse: bool = DEPTH_REUSE) -> Any:
+          intensity: float, quality: str, temporal: bool = False,
+          reuse: bool = False) -> Any:
     """Node tree of the effect, to be added right after the scene."""
     shrink = min(1.0, MAX_TEXTURE / max(width, height, 1))
     width = _scaled(width, shrink)
@@ -567,10 +564,23 @@ def build(width: int, height: int, camera: Any, scene: Any, radius: float,
     switch.addChild(lod)
     temporal = _use_temporal(temporal)
     reuse = _use_reuse(reuse)
+    helpers: list[Any] = []
     for level in (quality, INTERACTIVE):
         if level == INTERACTIVE and quality == INTERACTIVE:
             lod.addChild(lod.getChild(0))
         else:
             lod.addChild(_pipeline(width, height, camera, scene, radius,
-                                   intensity, level, temporal, reuse))
+                                   intensity, level, temporal, reuse,
+                                   helpers))
+    if helpers:
+        _helpers[view_utils.node_address(root)] = helpers
     return root
+
+
+def release(root: Any) -> None:
+    """Free the GL objects of the effect under ``root``, being replaced.
+
+    They go at the next frame drawn in their view's GL context.
+    """
+    for helper in _helpers.pop(view_utils.node_address(root), []):
+        helper.release()

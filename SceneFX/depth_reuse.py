@@ -143,6 +143,7 @@ class DepthSource:
         self.program = 0
         self.locations: dict[str, int] = {}
         self.valid = False            # output holds this frame's depth
+        self.gl_objects = gl_util.GLObjects()
         self.copy_node = coin.SoCallback()
         self.copy_node.setCallback(self._copy, None)
 
@@ -151,6 +152,13 @@ class DepthSource:
         node = coin.SoCallback()
         node.setCallback(self._bind, unit)
         return node
+
+    def release(self) -> None:
+        """Its effect is replaced: its GL objects go at the next frame."""
+        gl_util.retire(self.gl_objects)
+        self.gl_objects = gl_util.GLObjects()
+        self.ready = False
+        self.valid = False
 
     def _create(self, gl: Any) -> None:
         self.output = gl_util.nearest_texture(gl)
@@ -170,6 +178,9 @@ class DepthSource:
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_COMPARE_MODE,
                            gl.GL_NONE)
         self.source_fbo = int(gl.glGenFramebuffers(1))
+        self.gl_objects = gl_util.GLObjects(
+            gl_util.current_context(), [self.output, self.source],
+            [self.output_fbo, self.source_fbo], [self.program])
         self.ready = True
 
     def _resize_source(self, gl: Any, width: int, height: int,
@@ -247,6 +258,7 @@ class DepthSource:
         _, projection = gl_util.matrices(gl)
         try:
             with gl_util.preserved_state(gl):
+                gl_util.collect(gl)
                 self._convert(gl, drawn, viewport, projection)
             self.valid = True
         except Exception as exc:  # noqa: BLE001 - called from Coin's render

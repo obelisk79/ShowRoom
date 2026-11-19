@@ -5,11 +5,16 @@ Coin owns the GL state; a callback that draws on its own must leave that
 state exactly as it found it.  ``preserved_state`` saves and restores what
 Coin's lazy state tracking does not see (framebuffers, program, active
 texture unit) around everything ``glPushAttrib`` covers.
+
+GL objects can only be deleted in the context that made them, from inside
+a frame.  A helper whose effect is replaced ``retire``s them; ``collect``,
+run by every helper callback, deletes those of the current context.
 """
 from __future__ import annotations
 
 import contextlib
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 from typing import Any
 
 #: a full-screen quad in clip space
@@ -17,6 +22,23 @@ QUAD = ((-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0))
 #: errors other code left behind: cleared, or our own checks would trip
 STALE_ERRORS = 16
 _reported: set[str] = set()
+
+
+@dataclass
+class GLObjects:
+    """GL objects made by one helper, in one context."""
+
+    context: int = 0
+    textures: list[int] = field(default_factory=list)
+    framebuffers: list[int] = field(default_factory=list)
+    programs: list[int] = field(default_factory=list)
+
+    def __bool__(self) -> bool:
+        return bool(self.textures or self.framebuffers or self.programs)
+
+
+#: GL objects of replaced effects, waiting for a frame in their context
+_retired: list[GLObjects] = []
 
 
 def load() -> Any:
@@ -42,7 +64,35 @@ def warn_once(key: str, message: str) -> None:
     _reported.add(key)
     with contextlib.suppress(ImportError):
         import FreeCAD
-        FreeCAD.Console.PrintWarning('SceneFX: %s\n' % message)
+        FreeCAD.Console.PrintWarning('ShowRoom: %s\n' % message)
+
+
+def current_context() -> int:
+    """The current GL context, as a number to compare; 0 if none."""
+    from OpenGL import contextdata
+    return int(contextdata.getContext() or 0)
+
+
+def retire(objects: GLObjects) -> None:
+    """Queue ``objects`` for deletion at the next frame in their context."""
+    if objects:
+        _retired.append(objects)
+
+
+def collect(gl: Any) -> None:
+    """Delete the retired objects that belong to the current context."""
+    if not _retired:
+        return
+    context = current_context()
+    for objects in [o for o in _retired if o.context == context]:
+        _retired.remove(objects)
+        if objects.textures:
+            gl.glDeleteTextures(objects.textures)
+        if objects.framebuffers:
+            gl.glDeleteFramebuffers(len(objects.framebuffers),
+                                    objects.framebuffers)
+        for program in objects.programs:
+            gl.glDeleteProgram(program)
 
 
 def clear_errors(gl: Any) -> None:
@@ -63,9 +113,14 @@ def program(gl: Any, vertex: str, fragment: str) -> int:
         return int(handle)
 
     handle = gl.glCreateProgram()
-    gl.glAttachShader(handle, shader(gl.GL_VERTEX_SHADER, vertex))
-    gl.glAttachShader(handle, shader(gl.GL_FRAGMENT_SHADER, fragment))
+    shaders = (shader(gl.GL_VERTEX_SHADER, vertex),
+               shader(gl.GL_FRAGMENT_SHADER, fragment))
+    for part in shaders:
+        gl.glAttachShader(handle, part)
     gl.glLinkProgram(handle)
+    # flagged now, freed with the program
+    for part in shaders:
+        gl.glDeleteShader(part)
     if not gl.glGetProgramiv(handle, gl.GL_LINK_STATUS):
         raise RuntimeError(gl.glGetProgramInfoLog(handle))
     return int(handle)

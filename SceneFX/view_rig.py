@@ -28,6 +28,7 @@ from pivy import coin
 
 from Utils import view_utils
 from SceneFX import shadows, ambient_occlusion, navigation, shadow_catcher
+from SceneFX import gl_util
 
 LIGHTS_NAME = 'DisplayToolsLights'
 MAX_GL_LIGHTS = 8          # fixed-function OpenGL limit, FreeCAD's own lights included
@@ -46,29 +47,6 @@ _bridge = None
 _warned = set()
 
 
-#: performance toggles of the ambient occlusion: (property, default, tip)
-AO_TOGGLES = (
-    ('AOTemporal', ambient_occlusion.TEMPORAL,
-     'Accumulate ambient occlusion over frames: smoother, and it keeps '
-     'refining while the view is still'),
-    ('AODepthReuse', ambient_occlusion.DEPTH_REUSE,
-     "Reuse the view's depth buffer instead of drawing the model a second "
-     'time: faster on heavy models'),
-)
-
-
-def _add_ao_toggles(cfg: Any) -> None:
-    """Give a scene configuration made before the toggles existed them."""
-    if cfg is None or not hasattr(cfg, 'addProperty'):
-        return
-    group = cfg.getGroupOfProperty('AOQuality') if hasattr(
-        cfg, 'AOQuality') else 'Ambient occlusion'
-    for name, default, tip in AO_TOGGLES:
-        if not hasattr(cfg, name):
-            cfg.addProperty('App::PropertyBool', name, group, tip)
-            setattr(cfg, name, default)
-
-
 class Settings:
     """Effect settings of a document, read from its scene configuration."""
 
@@ -84,11 +62,8 @@ class Settings:
         radius = getattr(cfg, 'AORadius', 0.0)
         self.ao_radius = float(getattr(radius, 'Value', radius))
         self.ao_quality = str(getattr(cfg, 'AOQuality', 'High'))
-        _add_ao_toggles(cfg)
-        self.ao_temporal = bool(getattr(cfg, 'AOTemporal',
-                                        ambient_occlusion.TEMPORAL))
-        self.ao_depth_reuse = bool(getattr(cfg, 'AODepthReuse',
-                                           ambient_occlusion.DEPTH_REUSE))
+        self.ao_temporal = bool(getattr(cfg, 'AOTemporal', False))
+        self.ao_depth_reuse = bool(getattr(cfg, 'AODepthReuse', False))
         self.catcher = bool(getattr(cfg, 'ShadowCatcher', False))
         self.navigation_mode = str(getattr(cfg, 'WhileNavigating', navigation.DEFAULT_MODE))
         self.navigation_delay = int(getattr(cfg, 'NavigationResumeDelay',
@@ -267,6 +242,34 @@ def _measure_ao_radius(view: Any, doc: Any) -> float:
     return float('%.1e' % radius)
 
 
+def _drop_ao(outer: Any, existing: Any, view: Any) -> None:
+    """Take the effect out of ``view``, freeing its GPU memory now."""
+    ambient_occlusion.release(existing)
+    outer.removeChild(existing)
+    _free_gl_now(view)
+
+
+def _free_gl_now(view: Any) -> None:
+    """Delete released GL objects in ``view``'s context, outside a frame.
+
+    Where the view's GL widget cannot be had, they go at its next frame
+    that runs an effect helper.
+    """
+    if gl_util.missing_dependency() is not None:
+        return          # without PyOpenGL no GL objects were made
+    try:
+        widget = view.graphicsView().viewport()
+        widget.makeCurrent()
+    except Exception:
+        return
+    try:
+        gl_util.collect(gl_util.load())
+    except Exception:
+        pass
+    finally:
+        widget.doneCurrent()
+
+
 def _sync_ao(parts, settings, doc, mirrors):
     wrapper = _shadow_wrapper(parts)
     outer = _outer_parent(parts, wrapper)
@@ -283,7 +286,7 @@ def _sync_ao(parts, settings, doc, mirrors):
         wanted = radius > 0 and camera is not None and settings.ao_intensity > 0
     if not wanted:
         if existing is not None:
-            outer.removeChild(existing)
+            _drop_ao(outer, existing, parts.view)
         return
 
     width, height = view_utils.viewport_size(parts.view)
@@ -297,7 +300,7 @@ def _sync_ao(parts, settings, doc, mirrors):
     if existing is not None:
         if ambient_occlusion.current_signature(existing) == wanted_signature:
             return
-        outer.removeChild(existing)
+        _drop_ao(outer, existing, parts.view)
     outer.addChild(ambient_occlusion.build(
         width, height, camera, mirrors.ao, radius, settings.ao_intensity,
         settings.ao_quality, settings.ao_temporal, settings.ao_depth_reuse))

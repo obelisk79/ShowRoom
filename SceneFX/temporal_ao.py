@@ -109,6 +109,7 @@ class Accumulator:
         self.frame.ref()
         self.disabled = False
         self.textures: list[int] = []
+        self.gl_objects = gl_util.GLObjects()
         self.fbo = 0
         self.program = 0
         self.locations: dict[str, int] = {}
@@ -120,7 +121,18 @@ class Accumulator:
         self.node.setCallback(self._render, None)
 
     def _next_frame(self, data: Any, sensor: Any) -> None:
-        self.frame.value = self.frame.value.getValue() + 1.0
+        if self.frame is not None:
+            self.frame.value = self.frame.value.getValue() + 1.0
+
+    def release(self) -> None:
+        """Its effect is replaced: its GL objects go at the next frame."""
+        self.sensor.unschedule()
+        if self.frame is not None:
+            self.frame.unref()
+            self.frame = None
+        gl_util.retire(self.gl_objects)
+        self.gl_objects = gl_util.GLObjects()
+        self.textures = []
 
     def _create(self, gl: Any) -> None:
         self.textures = []
@@ -143,6 +155,9 @@ class Accumulator:
         self.program = gl_util.program(gl, VERTEX, FRAGMENT)
         self.locations = {name: gl.glGetUniformLocation(self.program, name)
                           for name in UNIFORMS}
+        self.gl_objects = gl_util.GLObjects(
+            gl_util.current_context(), list(self.textures), [self.fbo],
+            [self.program])
 
     def _accumulate(self, gl: Any, current: int, view: Any, projection: Any,
                     moving: bool) -> int:
@@ -193,7 +208,8 @@ class Accumulator:
 
     def _render(self, data: Any, action: Any) -> None:
         render = coin.SoGLRenderAction.getClassTypeId()
-        if self.disabled or not action.isOfType(render):
+        if self.disabled or self.frame is None or not action.isOfType(
+                render):
             return
         gl = gl_util.load()
         gl_util.clear_errors(gl)
@@ -204,6 +220,7 @@ class Accumulator:
         moving = self._moved(view, projection)
         try:
             with gl_util.preserved_state(gl):
+                gl_util.collect(gl)
                 result = self._accumulate(gl, current, view, projection,
                                           moving)
         except Exception as exc:  # noqa: BLE001 - called from Coin's render
